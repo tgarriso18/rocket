@@ -1,6 +1,6 @@
 #
-# VPython shell program for simulating Rutherford scattering of an alpha particle
-# off of a gold nucleus.
+# Simulation of a self landing rocket
+# Jason Chadwick, Thomas Garrison
 #
 from visual import *
 from visual.graph import *
@@ -43,7 +43,7 @@ z = rocket.length * sin(rocket.phi) * sin(rocket.theta)
 
 rocket.axis = vector(x,y,z)
 
-rocket.com = vector(200,atm_height, 0)
+rocket.com = vector(0,atm_height, 0)
 
 #calculating the distance from the bottom of the rocket to the center of mass
 com_dist_from_bot =  (empty_rocket_mass * rocket.length / 2) + ((kerosene_max_mass + LOX_max_mass) * rocket.length * rocket.fuel_pct**2 / 2)
@@ -59,6 +59,7 @@ trail2 = curve(color = (0,0,0.5))
 #rocket = cylinder(pos = rocket.pos, axis = rocket.axis, radius = rocket.radius, color = (1,0,0))
 
 height_label = label(pos = rocket.com, height = 16, text = "height")
+info_label = label(pos = rocket.com, height = 16, text = "placeholder")
 
 #gravity_arrow = arrow(pos = rocket.com, axis = (0,-30,0), shaftwidth = 1)
 thrust_cone = cone(pos = rocket.pos, axis = -rocket.axis * 0.5, radius=rocket.radius, color=(1,0,0))
@@ -165,21 +166,25 @@ while(running):
         time = 1000
 
     thrusting = False
+    info_label.text = ""
 
     if(rocket.momentum.y < 0):
         arrival_speed_squared = y_vel**2 + 2 * accel * delta_y
         if(arrival_speed_squared > 0):
             falling_factor = 1000
             thrusting = True
+            info_label.text = "Correcting for falling"
         else:
             if(rocket.theta > 0.1):
                 righting_factor = 50
                 thrusting = True
+                info_label.text = "Correcting for angle"
             else: thrusting = False
     if(horizontal_dist > 10):
         if(dot(horizontal_momentum, horizontal_pos) > 0):   #if momentum is away from (0,0,0)
             targeting_factor = 50
             thrusting = True
+            info_label.text = "Correcting for displacement"
         #elif(abs((horizontal_vel * time) - (horizontal_dist)) > 10):
             #targeting_factor = abs((horizontal_vel * time) - (horizontal_dist))
             #thrusting = True
@@ -236,8 +241,12 @@ while(running):
     if(not zoom_out_triggered): scene.center = rocket.com
 
     #moves height label to be right near rocket
-    if(zoom_out_triggered): height_label.pos = rocket.com + vector(300,0,0)
-    else:                   height_label.pos = rocket.com + vector(30,0,0)
+    if(zoom_out_triggered):
+        height_label.pos = rocket.com + vector(300,0,0)
+        info_label.pos = rocket.com + vector(300, -50, 0)
+    else:
+        height_label.pos = rocket.com + vector(30,0,0)
+        info_label.pos = rocket.com + vector(30, -5, 0)
     height_label.text = "speed: %s m/s height %s" %(int(mag(rocket.momentum/rocket.mass)), int(rocket.y))
 
     #creates intermediate cylinders to view progress
