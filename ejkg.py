@@ -104,7 +104,8 @@ while(running):
     angle = acos(abs(dot(norm(rocket.momentum), norm(rocket.axis)))) # angle between momentum and vertical
     frontal_area = (pi * rocket.radius**2)*abs(cos(angle)) + (rocket.length * 2*rocket.radius)*sin(angle)
     force_drag = .5 * frontal_area * 0.5 * 1.225 * mag2(rocket.momentum/rocket.mass) * -norm(rocket.momentum)
-    torque_drag = cross(rocket.com - rocket.pos, force_drag)
+    force_drag *= 0
+    torque_drag = cross((rocket.pos + 0.5*rocket.axis) - rocket.com, force_drag)
 
     # Adding minor random turbulence to make things interesting
     force_turbulence = vector(random()-0.5, random()-0.5, random()-0.5) * 0
@@ -120,7 +121,6 @@ while(running):
     rocket.phi = atan2((rocket.com.z - rocket.z), (rocket.com.x - rocket.x))
 
     thrust_theta = rocket.theta * 0.1
-    #if (abs(thrust_theta - rocket.theta) > pi/3): thrust_theta = rocket.theta - pi/3
 
     thrust_x = sin(thrust_theta) * cos(rocket.phi)
     thrust_y = cos(thrust_theta)
@@ -158,7 +158,7 @@ while(running):
     #factors which decide how much each component of the thrust is weighted
     #generally between 0 and 1, but sometimes greater if it is very important
     righting_factor = rocket.theta
-    targeting_factor = theta / (2*pi)
+    targeting_factor = theta / (pi)
     #if(dot(horizontal_momentum, horizontal_pos) > 0):
     #    targeting_factor *= mag(horizontal_momentum)
     #stab_factor = (1/(righting_factor+0.1))*(mag(rocket.ang_momentum)/rocket.moment_I / pi)
@@ -166,11 +166,12 @@ while(running):
     falling_factor = abs(rocket.momentum.y / rocket.mass)**2 / (rocket.y)
 
     
-        #calculating time to arrival
+    #calculating time to arrival
     if(y_vel**2 - 4*(accel/2)*(-delta_y) > 0):
-        time = (-(y_vel) + sqrt(y_vel**2 - 4*(accel/2)*(-delta_y)))/(accel)
+        time = (-(y_vel) - sqrt(y_vel**2 - 4*(accel/2)*(-delta_y)))/(accel)
     else:
         time = 1000
+    #if(count % 1 < 0.01): print time
 
     thrusting = False
     info_label.text = ""
@@ -179,7 +180,7 @@ while(running):
         thrusting = False
     elif(rocket.momentum.y < 0):
         arrival_speed_squared = y_vel**2 + 2 * accel * delta_y
-        if(arrival_speed_squared > -(rocket.y / 10)):
+        if(arrival_speed_squared > -(rocket.y/2)):
             falling_factor = 1000
             thrusting = True
             info_label.text = "Correcting for falling"
@@ -199,22 +200,33 @@ while(running):
     #targeting_factor *= 0
 
     ang_velocity = mag(rocket.ang_momentum) / rocket.moment_I
-    
+    thrust_cone.color = (1,0,0)
+    '''
     #if rocket is currently righting itself, slows it down if it will overshoot
-    if(dot(rocket.ang_momentum, -cross(rocket.axis, vector(0,1,0))) > 0):
-        max_torque = -rocket_maxthrust * sin(limiting_angle)
+    if thrusting and (dot(rocket.ang_momentum, cross(rocket.axis, vector(0,1,0))) > 0) and ang_velocity > 0.05:
+        thrust_cone.color = (0,1,0)
+        #print("ahhh")
+        max_torque = -rocket_maxthrust * sin(limiting_angle) * com_dist_from_bot
         if(ang_velocity**2 - 4*(max_torque/2)*(rocket.theta) > 0):
-            time = (-(ang_velocity) + sqrt(ang_velocity)**2 - 4*(max_torque/2)*(rocket.theta))/(max_torque)
+            time = (-(ang_velocity) + sqrt((ang_velocity)**2 - 4*(max_torque/2)*(rocket.theta)))/(max_torque)
         else:
             time = 1000
         #print(time)
-        if(ang_velocity * time < mag(rocket.ang_momentum)) and not (ang_velocity < 0.1 and rocket.theta < 0.1):
-            thrusting = True
-            righting_factor = 50
-            temp = force_righting.x
-            force_righting.x = -force_righting.z
-            force_righting.z = -temp
-    
+        if(-max_torque * abs(time) < mag(rocket.ang_momentum)):
+            righting_phi = atan2(force_righting.z, force_righting.x)
+            righting_phi += pi
+            force_righting.x = sin(limiting_angle) * cos(righting_phi)
+            force_righting.y = cos(limiting_angle)
+            force_righting.z = sin(limiting_angle) * sin(righting_phi)
+            
+            force_righting = -(rocket.axis).rotate(angle = limiting_angle, axis = -rocket.ang_momentum)
+            force_righting = norm(force_righting)
+            thrust_cone.color = (0,0,1)
+            #righting_factor = 50
+            #temp = force_righting.x
+            #force_righting.x = -force_righting.z
+            #force_righting.z = -temp
+    '''
     
     norm_thrust = norm(righting_factor * force_righting + targeting_factor*force_targeting + stab_factor*force_stab + falling_factor*force_falling)
     #norm_thrust = vector(1,0,0)
