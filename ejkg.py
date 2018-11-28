@@ -15,9 +15,9 @@ kerosene_max_mass = 123e3
 LOX_max_mass = 287e3
 empty_rocket_mass = 22.2e3
 ballast_mass = 10e3
-atm_height = 5000       #when "reentry" begins
-initial_velocity = 0      #approx. Mach 6 on reentry
-limiting_angle = pi/100
+atm_height = 10000       #when "reentry" begins
+initial_velocity = 200      #approx. Mach 6 on reentry
+limiting_angle = pi/10
     
 # Set up the display window.
 #
@@ -68,7 +68,7 @@ momentum_arrow = arrow(pos = rocket.pos + rocket.axis, axis = (0,0,0), shaftwidt
 
 #landing_pad = cylinder(pos=(0,0,0), axis = (0,-1,0), radius = 25)
 
-dt = 0.01
+dt = 0.005
 
 running = True
 
@@ -83,7 +83,7 @@ targeting_factor = 0
 falling_factor = 0
 
 while(running):
-    rate(100)   #simulation runs in real time
+    rate(200)   #simulation runs in real time
 
     fuel_mass = rocket.fuel_pct * (kerosene_max_mass + LOX_max_mass)
     com_fuel = rocket.pos + (rocket.fuel_pct * rocket.length * norm(rocket.axis) / 2)
@@ -103,8 +103,8 @@ while(running):
     # Calculating effects of air resistance
     angle = acos(abs(dot(norm(rocket.momentum), norm(rocket.axis)))) # angle between momentum and vertical
     frontal_area = (pi * rocket.radius**2)*abs(cos(angle)) + (rocket.length * 2*rocket.radius)*sin(angle)
-    force_drag = .5 * frontal_area * 0.5 * 1.225 * mag2(rocket.momentum/rocket.mass) * -norm(rocket.momentum)
-    force_drag *= 0
+    force_drag = (.005 * cos(rocket.theta)) * frontal_area * 0.5 * 1.225 * mag2(rocket.momentum/rocket.mass) * -norm(rocket.momentum)
+    #force_drag *= 0
     torque_drag = cross((rocket.pos + 0.5*rocket.axis) - rocket.com, force_drag)
 
     # Adding minor random turbulence to make things interesting
@@ -145,11 +145,13 @@ while(running):
     #thrust to keep rocket from crashing into the ground
     force_falling = vector(0,1,0)
 
+    force_horiz_stab = vector(0,0,0)
+
 
     #calculates whether rocket needs to start thrusting or not
     y_vel = rocket.momentum.y / rocket.mass
     accel = (-9.81 + (rocket_maxthrust / rocket.mass) * norm(rocket.axis).y)
-    delta_y = -(rocket.com.y - com_dist_from_bot) + 1
+    delta_y = -(rocket.com.y - com_dist_from_bot) + 0.9
     horizontal_pos = vector(rocket.x, 0, rocket.z)
     horizontal_momentum = vector(rocket.momentum.x, 0, rocket.momentum.z)
     horizontal_dist = mag(horizontal_pos)
@@ -164,8 +166,8 @@ while(running):
     #stab_factor = (1/(righting_factor+0.1))*(mag(rocket.ang_momentum)/rocket.moment_I / pi)
     stab_factor = (1/righting_factor)*(mag(rocket.ang_momentum)/rocket.moment_I / pi)
     falling_factor = abs(rocket.momentum.y / rocket.mass)**2 / (rocket.y)
-
-    
+    horiz_stab_factor = horizontal_vel / 2
+        
     #calculating time to arrival
     if(y_vel**2 - 4*(accel/2)*(-delta_y) > 0):
         time = (-(y_vel) - sqrt(y_vel**2 - 4*(accel/2)*(-delta_y)))/(accel)
@@ -180,20 +182,24 @@ while(running):
         thrusting = False
     elif(rocket.momentum.y < 0):
         arrival_speed_squared = y_vel**2 + 2 * accel * delta_y
-        if(arrival_speed_squared > -(rocket.y/2)):
+        if(arrival_speed_squared > -(rocket.y * 2 + 2)):
             falling_factor = 1000
             thrusting = True
             info_label.text = "Correcting for falling"
         else:
-            if(rocket.theta > 0.1):
+            if(rocket.theta > 0.05 and rocket.y < atm_height * 0.8):
                 righting_factor = 50
                 thrusting = True
                 info_label.text = "Correcting for angle"
-            elif(horizontal_dist > 10):
-                if(dot(horizontal_momentum, horizontal_pos) > 0) or (abs(horizontal_vel * time) - horizontal_dist > 10):   #if momentum is away from (0,0,0)
-                    #targeting_factor *= 10
-                    thrusting = True
-                    info_label.text = "Correcting for displacement"
+            #elif(horizontal_dist > 10):
+            #    if(dot(horizontal_momentum, horizontal_pos) > 0) or (abs(horizontal_vel * time) - horizontal_dist > 10):   #if momentum is away from (0,0,0)
+            #        #targeting_factor *= 10
+            #        thrusting = True
+            #        info_label.text = "Correcting for displacement"
+            #if(horizontal_vel > 1):
+            #    thrusting = True
+            #    force_horiz_stab = -norm(horizontal_momentum)
+                
             else: thrusting = False
     
     
@@ -201,9 +207,9 @@ while(running):
 
     ang_velocity = mag(rocket.ang_momentum) / rocket.moment_I
     thrust_cone.color = (1,0,0)
-    '''
+    
     #if rocket is currently righting itself, slows it down if it will overshoot
-    if thrusting and (dot(rocket.ang_momentum, cross(rocket.axis, vector(0,1,0))) > 0) and ang_velocity > 0.05:
+    if (dot(rocket.ang_momentum, cross(rocket.axis, vector(0,1,0))) > 0) and ((rocket.theta < 0.04 and rocket.y < atm_height * 0.8 and falling_factor != 1000)):
         thrust_cone.color = (0,1,0)
         #print("ahhh")
         max_torque = -rocket_maxthrust * sin(limiting_angle) * com_dist_from_bot
@@ -212,41 +218,42 @@ while(running):
         else:
             time = 1000
         #print(time)
-        if(-max_torque * abs(time) < mag(rocket.ang_momentum)):
-            righting_phi = atan2(force_righting.z, force_righting.x)
-            righting_phi += pi
-            force_righting.x = sin(limiting_angle) * cos(righting_phi)
-            force_righting.y = cos(limiting_angle)
-            force_righting.z = sin(limiting_angle) * sin(righting_phi)
-            
-            force_righting = -(rocket.axis).rotate(angle = limiting_angle, axis = -rocket.ang_momentum)
-            force_righting = norm(force_righting)
+        if(-max_torque * time < mag(rocket.ang_momentum)):
+            thrusting = True
+            #righting_phi = atan2(force_righting.z, force_righting.x)
+            #righting_phi += pi
+            #force_righting.x = sin(limiting_angle) * cos(righting_phi)
+            #force_righting.y = cos(limiting_angle)
+            #force_righting.z = sin(limiting_angle) * sin(righting_phi)
+
+            rocket_axis_norm = rocket.axis
+            force_righting = -(-rocket_axis_norm).rotate(angle = limiting_angle, axis = -rocket.ang_momentum)
             thrust_cone.color = (0,0,1)
-            #righting_factor = 50
+            righting_factor = 50
             #temp = force_righting.x
             #force_righting.x = -force_righting.z
             #force_righting.z = -temp
-    '''
     
-    norm_thrust = norm(righting_factor * force_righting + targeting_factor*force_targeting + stab_factor*force_stab + falling_factor*force_falling)
+    
+    norm_thrust = norm(righting_factor * force_righting + targeting_factor*force_targeting + stab_factor*force_stab + falling_factor*force_falling + horiz_stab_factor*force_horiz_stab)
     #norm_thrust = vector(1,0,0)
-    
-    if(dot(norm_thrust, rocket.axis) < cos(limiting_angle)):
-        thrust_phi = atan2(norm_thrust.z - rocket.axis.z, norm_thrust.x - rocket.axis.x)
+    '''
+    if(dot(norm_thrust, norm(rocket.axis)) < cos(limiting_angle)):
+        #thrust_phi = atan2(norm_thrust.z, norm_thrust.x)
 
         axis = cross(norm_thrust, rocket.axis)
         
-
-        theta = rocket.theta 
+        #theta = rocket.theta
         
-        thrust_x = sin(limiting_angle) * cos(thrust_phi)
-        thrust_y = cos(limiting_angle)
-        thrust_z = sin(limiting_angle) * sin(thrust_phi)
+        #thrust_x = sin(limiting_angle) * cos(thrust_phi)
+        #thrust_y = cos(limiting_angle)
+        #thrust_z = sin(limiting_angle) * sin(thrust_phi)
 
-        norm_thrust = vector(thrust_x, thrust_y, thrust_z)
+        #norm_thrust = vector(thrust_x, thrust_y, thrust_z)
 
-        norm_thrust = (-rocket.axis).rotate(angle = limiting_angle, axis = axis)
-    
+        rocket_axis_norm = norm(rocket.axis)
+        norm_thrust = -(-rocket_axis_norm).rotate(angle = limiting_angle, axis = axis)
+    '''
     
     force_thrust = rocket_maxthrust * norm_thrust
     if(thrusting == False): force_thrust *= 0
@@ -277,17 +284,18 @@ while(running):
     com_dist_from_bot /= rocket.mass
 
     rocket.pos = rocket.com - rocket.axis * (com_dist_from_bot/rocket.length)
-    trail.append(rocket.pos)
-    trail2.append(rocket.pos + rocket.axis)
+    trail.append(rocket.pos, retain = 5)
+    trail2.append(rocket.pos + rocket.axis, retain = 5)
     thrust_cone.pos = rocket.pos
 
     #zooms out when rocket is about to land so that the landing can be viewed better
     if(rocket.pos.y <= 1000 and not zoom_out_triggered):
         zoom_out_triggered = True
-        scene.center = (0,500,0)
-        scene.range = 600
+        scene.center = (rocket.x,500,rocket.z)
+        scene.range = 500
         scene.forward = vector(0,0,-1)
-        landing_pad = cylinder(pos = (0,0,0), axis = (0,-2,0), radius = 100, color = (0.5,0.5,0.5))
+        scene.autocenter = 1
+        landing_pad = cylinder(pos = (rocket.x,0,rocket.z), axis = (0,-2,0), radius = 100, color = (0.5,0.5,0.5))
     elif((rocket.pos.y >= 1000 or abs(rocket.pos.x) > 500) and zoom_out_triggered):
         zoom_out_triggered = False
 
@@ -300,10 +308,13 @@ while(running):
     if(zoom_out_triggered):
         height_label.pos = rocket.com + vector(300,0,0)
         info_label.pos = rocket.com + vector(300, -50, 0)
+
+
+        #scene.range = (rocket.y * 0.6)
     else:
         height_label.pos = rocket.com + vector(30,0,0)
         info_label.pos = rocket.com + vector(30, -5, 0)
-    height_label.text = "speed: %s m/s height %s" %(int(mag(rocket.momentum/rocket.mass)), int(rocket.y))
+    height_label.text = "speed: %s m/s height %s" %(int(rocket.momentum.y/rocket.mass), int(rocket.y))
 
     #creates intermediate cylinders to view progress
     count += dt
@@ -314,8 +325,10 @@ while(running):
     if(rocket.y < 1):
         running = False
 
-angle = sqrt(rocket.axis.x **2 + rocket.axis.z ** 2)
-speed = mag(rocket.momentum) / rocket.mass
-print("angle: %s") %(angle)
-print("speed: %s") %(speed)
-print(rocket.y)
+angle = rocket.theta
+#speed = mag(rocket.momentum) / rocket.mass
+speed = rocket.momentum.y / rocket.mass
+print("angle: %s rad") %(angle)
+print("vertical velocity: %s m/s") %(speed)
+print("horizontal velocity: %s m/s") %(horizontal_vel)
+print("height: %s m") %(rocket.y)
