@@ -15,8 +15,8 @@ kerosene_max_mass = 123e3
 LOX_max_mass = 287e3
 empty_rocket_mass = 22.2e3
 ballast_mass = 10e3
-atm_height = 1000       #when "reentry" begins
-initial_velocity = 190      #approx. Mach 6 on reentry
+atm_height = 10000       #when "reentry" begins
+initial_velocity = 300      #approx. Mach 6 on reentry
 limiting_angle = pi/10
     
 # Set up the display window.
@@ -296,6 +296,8 @@ while(running):
         scene.forward = vector(0,0,-1)
         scene.autocenter = 0
         landing_pad = cylinder(pos = (rocket.x,0,rocket.z), axis = (0,-2,0), radius = 100, color = (0.5,0.5,0.5))
+        target_pad = cylinder(pos = (rocket.x, 0, rocket.z), axis = (0, 0.1, 0), radius = rocket.y / 10, color = (0,1,0))
+        target_pad_2 = cylinder(pos = (rocket.x, 0, rocket.z), axis = (0, 0.2, 0), radius = rocket.y / 15, color = (0.5, 0.5, 0.5))
     elif((rocket.pos.y >= 1000 or abs(rocket.pos.x) > 500) and zoom_out_triggered):
         zoom_out_triggered = False
 
@@ -309,6 +311,11 @@ while(running):
         height_label.pos = rocket.com + vector(300,0,0)
         info_label.pos = rocket.com + vector(300, -50, 0)
 
+        target_pad.pos = (rocket.x, 0, rocket.z)
+        target_pad.radius = rocket.y / 10
+
+        target_pad_2.pos = (rocket.x, 0, rocket.z)
+        target_pad_2.radius = rocket.y / 15
 
         #landing_pad.pos = (rocket.x, 0, rocket.z)
         #scene.range = (rocket.y * 0.6)
