@@ -22,6 +22,9 @@ limiting_angle = pi/10
 
 for j in range(6):  #goes from 750 to 2000
     initial_velocity += (250 * j)
+    print("\n")
+    print(initial_velocity)
+    print("\n")
     for i in range(20):
         print("\ntrial %s") %(i)
         # Set up the display window.
